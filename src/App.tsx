@@ -1,0 +1,118 @@
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { CRMProvider, useCRM } from './context/CRMContext';
+import { ToastProvider } from './context/ToastContext';
+import { ToastContainer } from './components/common/ToastContainer';
+import { AuthModal } from './components/auth/AuthModal';
+import { PublicSite } from './components/public/PublicSite';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { NewRecordModal } from './components/common/NewRecordModal';
+import { TrialBanner } from './components/billing/TrialBanner';
+import { MercadoPagoSubscriptionModal } from './components/billing/MercadoPagoSubscriptionModal';
+import { isPrivateAppPath } from './lib/router/routeRegistry';
+
+import { CommandPalette } from './components/common/CommandPalette';
+import { RecordDrawer } from './components/common/RecordDrawer';
+import { PrivateEnvironment } from './components/app/PrivateEnvironment';
+import { ThemeSync } from './components/common/ThemeSync';
+import { InstallAppButton } from './components/common/InstallAppButton';
+
+const AppContent: React.FC = () => {
+  const { resolvedTheme } = useTheme();
+  const {
+    isPublicSiteVisible,
+    isAuthenticated,
+    isAuthReady,
+    openPublicSite,
+    enterApp,
+    isMpCheckoutModalOpen,
+    setIsMpCheckoutModalOpen,
+    selectedCheckoutPlan,
+  } = useCRM();
+  const [pathname, setPathname] = useState(() =>
+    typeof window === 'undefined' ? '/' : window.location.pathname,
+  );
+  const isPrivateRoute = isPrivateAppPath(pathname);
+
+  // Keep browser navigation and the context's environment state in sync.
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    if (isPrivateRoute && isAuthenticated) {
+      if (isPublicSiteVisible) enterApp();
+      return;
+    }
+
+    if (isPrivateRoute && !isAuthenticated) {
+      window.history.replaceState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      openPublicSite();
+      return;
+    }
+
+    if (!isPrivateRoute && !isPublicSiteVisible) openPublicSite();
+  }, [enterApp, isAuthReady, isAuthenticated, isPrivateRoute, isPublicSiteVisible, openPublicSite]);
+
+  const publicEnvironment = (
+    <div className="min-h-screen w-screen overflow-x-hidden bg-[var(--clientum-surface,#F5F7FA)] dark:bg-[var(--clientum-surface,#040711)] text-[var(--clientum-ink,#212121)] dark:text-white">
+      <ThemeSync />
+      <TrialBanner />
+      <PublicSite />
+      <CommandPalette />
+      <NewRecordModal />
+      <RecordDrawer />
+      <AuthModal />
+      <MercadoPagoSubscriptionModal
+        isOpen={isMpCheckoutModalOpen}
+        onClose={() => setIsMpCheckoutModalOpen(false)}
+        initialPlan={selectedCheckoutPlan}
+      />
+      <ToastContainer />
+    </div>
+  );
+
+  const privateEnvironment = (
+    <ThemeSync dataContainerId="theme-sync-private-root">
+      <PrivateEnvironment />
+    </ThemeSync>
+  );
+
+  if (!isAuthReady && isPrivateRoute) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--clientum-surface,#F5F7FA)] dark:bg-[var(--clientum-surface,#040711)] text-sm text-[var(--clientum-ink,#212121)] dark:text-slate-300">
+        <ThemeSync />
+        Verificando tu sesión segura con Firebase…
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <ProtectedRoute
+        isAuthenticated={isPrivateRoute && isAuthenticated && !isPublicSiteVisible}
+        fallback={publicEnvironment}
+      >
+        {privateEnvironment}
+      </ProtectedRoute>
+      <InstallAppButton />
+    </>
+  );
+};
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <CRMProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </CRMProvider>
+    </ThemeProvider>
+  );
+}

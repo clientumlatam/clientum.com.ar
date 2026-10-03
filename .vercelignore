@@ -1,0 +1,7 @@
+# Vercel deployment ignore rules
+.git
+.env*
+!.env.example
+node_modules
+README.md
+*.log
