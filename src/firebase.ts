@@ -91,17 +91,31 @@ export const db: Firestore = isLiveFirebaseReady
         setLogLevel('error');
       } catch {}
       try {
-        const firestoreSettings = {
+        // Detect if running inside an iframe, where cross-origin third-party storage restrictions block IndexedDB
+        const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+        
+        const firestoreSettings: any = {
           experimentalAutoDetectLongPolling: true,
           experimentalForceLongPolling: true,
-          localCache: persistentLocalCache({
-            tabManager: persistentMultipleTabManager(),
-          }),
         };
+
+        if (!isIframe) {
+          try {
+            firestoreSettings.localCache = persistentLocalCache({
+              tabManager: persistentMultipleTabManager(),
+            });
+          } catch (cacheErr) {
+            console.warn('Persistent local cache not supported/allowed in this context, using memory cache:', cacheErr);
+          }
+        } else {
+          console.log('Running inside an iframe. Disabling persistent local cache to ensure standard connection.');
+        }
+
         return firebaseDatabaseId
           ? initializeFirestore(app as FirebaseApp, firestoreSettings, firebaseDatabaseId)
           : initializeFirestore(app as FirebaseApp, firestoreSettings);
       } catch (err) {
+        console.warn('initializeFirestore failed, falling back to standard getFirestore:', err);
         return firebaseDatabaseId
           ? getFirestore(app as FirebaseApp, firebaseDatabaseId)
           : getFirestore(app as FirebaseApp);

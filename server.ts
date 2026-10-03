@@ -30,6 +30,7 @@ import {
 dotenv.config();
 
 import { crmRouter } from "./src/server/routes/crm.routes";
+import { githubWebhookRouter } from "./src/server/routes/githubWebhooks.routes";
 import { tenantMiddleware } from "./src/server/middleware/auth";
 import { getFirebaseAdminAuthStatus, verifyFirebaseIdToken, updateUserSubscriptionInFirestore } from "./server/firebaseAdmin";
 import { handleMercadoPagoWebhook } from "./server/controllers/webhooks";
@@ -503,6 +504,9 @@ app.use(
 // modular router still receives tenantMiddleware for compatibility; tenant
 // derivation is handled by the follow-up isolation task.
 app.use("/api/crm", tenantMiddleware, crmRouter);
+
+// Mount public GitHub webhook listener to handle repository & PR events
+app.use("/api/github/webhooks", githubWebhookRouter);
 
 function readBoundedQueryNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
